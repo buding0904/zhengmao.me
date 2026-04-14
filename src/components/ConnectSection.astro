@@ -1,0 +1,39 @@
+---
+import Link from "@components/Link.astro";
+import { SITE } from "@consts";
+import { SOCIALS_EN, SOCIALS_ZH } from "@i18n";
+import { useTranslations } from "@i18n";
+import type { Lang } from "@i18n";
+
+type Props = {
+  lang: Lang;
+};
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+const socials = lang === "zh" ? SOCIALS_ZH : SOCIALS_EN;
+---
+
+<section class="animate space-y-4">
+  <h5 class="font-semibold text-black dark:text-white">
+    {t("home.connect")}
+  </h5>
+  <article>
+    <p>{t("home.connectDesc")}</p>
+  </article>
+  <ul class="flex flex-wrap gap-2">
+    {socials.map((social) => (
+      <li class="flex gap-x-2 text-nowrap">
+        <Link href={social.HREF} external aria-label={`${SITE.NAME} on ${social.NAME}`}>
+          {social.NAME}
+        </Link>
+        {"/"}
+      </li>
+    ))}
+    <li class="line-clamp-1">
+      <Link href={`mailto:${SITE.EMAIL}`} aria-label={`Email ${SITE.NAME}`}>
+        EMail
+      </Link>
+    </li>
+  </ul>
+</section>

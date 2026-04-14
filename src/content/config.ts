@@ -6,7 +6,9 @@ const blog = defineCollection({
     title: z.string(),
     description: z.string(),
     date: z.coerce.date(),
-    draft: z.boolean().optional()
+    draft: z.boolean().optional(),
+    lang: z.enum(["en", "zh"]).optional().default("en"),
+    canonicalSlug: z.string().optional(), // shared slug across languages
   }),
 });
 
@@ -17,6 +19,7 @@ const work = defineCollection({
     role: z.string(),
     dateStart: z.coerce.date(),
     dateEnd: z.union([z.coerce.date(), z.string()]),
+    lang: z.enum(["en", "zh"]).optional().default("en"),
   }),
 });
 
@@ -28,7 +31,9 @@ const projects = defineCollection({
     date: z.coerce.date(),
     draft: z.boolean().optional(),
     demoURL: z.string().optional(),
-    repoURL: z.string().optional()
+    repoURL: z.string().optional(),
+    lang: z.enum(["en", "zh"]).optional().default("en"),
+    canonicalSlug: z.string().optional(), // shared slug across languages
   }),
 });
 

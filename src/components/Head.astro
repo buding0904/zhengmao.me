@@ -26,9 +26,9 @@ const { title, description, image = "/nano.png" } = Astro.props;
 <!-- Global Metadata -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<link rel="icon" type="image/svg+xml" href="/favicon-dark.svg" media="(prefers-color-scheme: dark)">
-<link rel="icon" type="image/svg+xml" href="/favicon-light.svg" media="(prefers-color-scheme: light)">
-<link rel="icon" type="image/x-icon" href="/favicon-light.svg">
+<link rel="icon" type="image/svg+xml" href="/avatar.png" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/svg+xml" href="/avatar.png" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/x-icon" href="/avatar.png">
 <meta name="generator" content={Astro.generator} />
 
 <!-- Font preloads -->
@@ -80,6 +80,7 @@ const { title, description, image = "/nano.png" } = Astro.props;
     preloadTheme();
     onScroll();
     animate();
+    updateThemeIcon();
 
     const backToTop = document.getElementById("back-to-top");
     backToTop?.addEventListener("click", (event) => scrollToTop(event));
@@ -87,33 +88,37 @@ const { title, description, image = "/nano.png" } = Astro.props;
     const backToPrev = document.getElementById("back-to-prev");
     backToPrev?.addEventListener("click", () => window.history.back());
 
-    const lightThemeButton = document.getElementById("light-theme-button");
-    lightThemeButton?.addEventListener("click", () => {
-      localStorage.setItem("theme", "light");
-      toggleTheme(false);
-    });
-
-    const darkThemeButton = document.getElementById("dark-theme-button");
-    darkThemeButton?.addEventListener("click", () => {
-      localStorage.setItem("theme", "dark");
-      toggleTheme(true);
-    });
-
-    const systemThemeButton = document.getElementById("system-theme-button");
-    systemThemeButton?.addEventListener("click", () => {
-      localStorage.setItem("theme", "system");
-      toggleTheme(window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const themeToggleButton = document.getElementById("theme-toggle-button");
+    themeToggleButton?.addEventListener("click", () => {
+      const isDark = document.documentElement.classList.contains("dark");
+      const newTheme = isDark ? "light" : "dark";
+      localStorage.setItem("theme", newTheme);
+      toggleTheme(!isDark);
+      updateThemeIcon();
     });
 
     window.matchMedia("(prefers-color-scheme: dark)")
       .addEventListener("change", event => {
         if (localStorage.theme === "system" || !localStorage.theme) {
           toggleTheme(event.matches);
+          updateThemeIcon();
         }
       }
     );
 
     document.addEventListener("scroll", onScroll);
+  }
+
+  function updateThemeIcon() {
+    const isDark = document.documentElement.classList.contains("dark");
+    const sunIcon = document.getElementById("theme-icon-sun");
+    const moonIcon = document.getElementById("theme-icon-moon");
+    if (sunIcon && moonIcon) {
+      // In dark mode: show sun icon (click → switch to light)
+      // In light mode: show moon icon (click → switch to dark)
+      sunIcon.classList.toggle("hidden", !isDark);
+      moonIcon.classList.toggle("hidden", isDark);
+    }
   }
 
   function animate() {
@@ -183,4 +188,5 @@ function toggleTheme(dark) {
   document.addEventListener("DOMContentLoaded", () => init());
   document.addEventListener("astro:after-swap", () => init());
   preloadTheme();
+  updateThemeIcon();
 </script>
