@@ -18,8 +18,6 @@ export const ui = {
     "home.recentProjects": "Recent Projects",
     "home.seeAllProjects": "See all projects",
     "home.connect": "Connect me",
-    "home.connectDesc":
-      "If you want to get in touch or just say hi, reach out via social media or email.",
 
     // Blog
     "blog.title": "Blog",
@@ -56,11 +54,9 @@ export const ui = {
     "home.seeAllPosts": "查看全部",
     "home.workExperience": "工作经历",
     "home.seeAllWork": "查看全部",
-    "home.recentProjects": "项目经历",
+    "home.recentProjects": "最近项目",
     "home.seeAllProjects": "查看全部",
     "home.connect": "联系我",
-    "home.connectDesc":
-      "如果你想和我交流，欢迎通过以下方式联系。",
 
     // Blog
     "blog.title": "博客",

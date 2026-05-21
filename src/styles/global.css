@@ -53,6 +53,16 @@ article {
     @apply text-black dark:text-white;
     @apply decoration-black/25 dark:decoration-white/50;
   }
+
+  article :not(pre) > code {
+    @apply rounded bg-black/[0.06] px-1.5 py-0.5 text-[0.875em] font-medium;
+    @apply text-black/70 dark:bg-white/10 dark:text-white/85;
+  }
+
+  article :not(pre) > code::before,
+  article :not(pre) > code::after {
+    content: none;
+  }
 }
 
 .animate {
@@ -70,4 +80,31 @@ html #back-to-top {
 
 html.scrolled #back-to-top {
   @apply opacity-100 pointer-events-auto;
+}
+
+.image-list-lightbox .yarl__button {
+  @apply m-3 flex size-10 items-center justify-center rounded border border-white/10;
+  @apply bg-stone-950/35 text-white/75 backdrop-blur-md;
+  @apply transition-colors duration-200;
+}
+
+.image-list-lightbox .yarl__button:hover,
+.image-list-lightbox .yarl__button:focus-visible {
+  @apply border-[oklch(64.8%_0.2_131.684_/_0.6)] bg-[oklch(64.8%_0.2_131.684_/_0.1)] text-accent;
+}
+
+.image-list-lightbox .yarl__button:disabled {
+  @apply border-white/5 bg-stone-950/20 text-white/25;
+}
+
+.image-list-lightbox .yarl__icon {
+  @apply stroke-[1.5];
+}
+
+.image-list-lightbox .yarl__navigation_prev {
+  @apply left-4;
+}
+
+.image-list-lightbox .yarl__navigation_next {
+  @apply right-4;
 }

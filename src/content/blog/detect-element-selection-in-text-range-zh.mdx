@@ -1,0 +1,101 @@
+---
+title: "空字符：检测选中状态的隐藏技巧"
+description: "为什么飞书可以做到每个类型的 block 都有自定义的选中效果？它是如何知道我的文本区域有没有选中这个元素，背后的原理是怎样的？接下来我们将会探究飞书中实现元素选中状态判断的实现原理"
+date: "Apr 01 2026"
+lang: "zh"
+draft: true
+canonicalSlug: "detect-element-selection-in-text-range"
+---
+
+import ImageList from "@components/ImageList";
+
+## 起因
+
+在开发文档编辑器的过程中，我们遇到了这样一个问题：当用户通过鼠标选择文本时，如果中间包含了一些 block，例如代码块，表格等，正常情况下这些 block 是没有选中状态的，只有内部文本有选中状态。
+
+<ImageList
+  client:load
+  assetDir="detect-element-selection-in-text-range"
+  images={[
+    {
+      title: "飞书选中状态",
+      src: "1.jpg",
+    },
+    {
+      title: "Notion 选中状态",
+      src: "2.jpg",
+    },
+    {
+      title: "纯 HTML 选中状态",
+      src: "3.jpg",
+    },
+  ]}
+/>
+
+从图中可以明显看出来，飞书在选中文本时，中间的表格是有自己的选中状态的，而 notion 是没有的。由此可见，飞书一定是做过一些处理才可以达到这样的效果，那么它是如何做到的呢？
+
+## 实现
+
+在开始思考思路之前，我们需要先理清楚需求以及一些测试的 case，大致的需求如下
+
+1. 当用鼠标选择文本时，如果跨越了非文本元素，那么应该需要出现选中效果，这些元素可以是表格（带文字）、图片、纯 div（自定义 block）等不同的类型
+2. 当用鼠标进入非文本元素时，应该立即出现选中效果，而不是等到整个元素被包裹在选中区域时才触发
+3. 当鼠标离开非文本元素时，选中效果应该立即消失
+
+为了实现这个功能，我们大概有以下几种思路：
+
+### 暴力遍历
+
+我们知道 `selection` 的 `range` 中是包含 `startContainer` 和 `endContainer` 的，那么我们就可以遍历整个文档，然后判断目标元素是否处于这两个 container 中间。显而易见，这个方案有严重性能问题，由于每次都得遍历整个文档的元素才能知道目标元素是否在选中区域，当文档内容非常多或者是元素嵌套较深时，效率会变得非常差，并且逻辑也很复杂，难以维护，可以直接 pass
+
+### containsNode
+
+在 `selection` 中有一个 `containsNode` api，作用就是用来判断选中区域是否包含某个元素，看起来就是我们需要的，可以进行尝试。
+
+大致思路就是监听 `selectionchange` 事件，当 `selection.containsNode(table)` 为 `true` 时，那么就认为表格被选中了，可以看下实现效果
+
+> 需要注意的是，记得判断 `selection.isCollapsed` 的状态，否则点击 block 时也会触发选中效果
+
+<ImageList
+  client:load
+  assetDir="detect-element-selection-in-text-range"
+  images={[
+    {
+      title: "表格",
+      src: "4.gif",
+    },
+    {
+      title: "普通 div",
+      src: "5.gif",
+    },
+  ]}
+/>
+
+### 看看飞书怎么做的
+
+当时由于思考良久没有一个较好方案，所以我们只能去看看飞书是怎么做的，获取能够从中得到一些启发
+
+我们的做法非常简单，通过 chrome debug 工具查看飞书文档的 dom 结构，观察当被选中和未被选中时，dom 结构上是否有什么区别， 在这个过程中，我们发现，飞书文档中的每个自定义 block 元素的内部，都在前后包裹了一个 `docx-block-zero-space` div，并且里面会包含一个 `&ZeroWidthSpace;` 字符
+
+<ImageList
+  client:load
+  assetDir="detect-element-selection-in-text-range"
+  images={[
+    {
+      title: "代码块",
+      src: "7.jpg",
+    },
+    {
+      title: "表格",
+      src: "8.jpg",
+    },
+    {
+      title: "分割线",
+      src: "9.jpg",
+    },
+  ]}
+/>
+
+由此可见，我们会联想到这两个 div 是不是专门用来检测的，因为里面带有不可见的字符，所以它是可以被文本区域选中的，那么是否就能更准确的判断了，话不多说，直接尝试一下，实现方式很简单，就是在自定义的 block 内，前后都包裹一个这种空字符的容器，然后判断其是否被选区选中，可以使用 `selection.containsNode` 或者是 `range.intersectsNode` api
+
+## 总结
