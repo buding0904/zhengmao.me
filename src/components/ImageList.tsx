@@ -1,60 +1,124 @@
-import { useMemo, useState, type ImgHTMLAttributes } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ImgHTMLAttributes,
+} from "react";
 import Lightbox from "yet-another-react-lightbox";
 import Zoom from "yet-another-react-lightbox/plugins/zoom";
 import "yet-another-react-lightbox/styles.css";
 
 type ImageItem = {
   src: string;
-  title: string;
+  title?: string;
   alt?: string;
 };
 
 type Props = {
   images: ImageItem[];
   assetDir?: string;
+  assetBase?: string;
   imageProps?: Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "alt">;
 };
 
-type BlogImage = string | { src: string };
+type ContentImage = string | { src: string };
 
-const blogImages = import.meta.glob(
-  "/src/content/blog/assets/**/*.{avif,gif,jpeg,jpg,png,webp}",
+const imageModules = import.meta.glob(
+  [
+    "/src/assets/**/*.{avif,gif,jpeg,jpg,png,webp}",
+    "/src/content/{blog,notes,projects}/**/assets/**/*.{avif,gif,jpeg,jpg,png,webp}",
+  ],
   {
     eager: true,
     import: "default",
   },
-) as Record<string, BlogImage>;
+) as Record<string, ContentImage>;
 
-function resolveImageSrc(src: string, assetDir?: string) {
-  if (/^(https?:)?\/\//.test(src) || src.startsWith("/") || src.startsWith("data:")) {
+function getPageAssetBase() {
+  if (typeof window === "undefined") return undefined;
+
+  const segments = window.location.pathname.split("/").filter(Boolean);
+  const collectionIndex = segments.findIndex((segment) =>
+    ["blog", "notes", "projects"].includes(segment),
+  );
+
+  if (collectionIndex === -1) return undefined;
+
+  const collection = segments[collectionIndex];
+  const slug = segments[collectionIndex + 1];
+  if (!slug) return undefined;
+
+  return "/src/content/" + collection + "/" + slug + "/assets";
+}
+
+function normalizeAssetDir(assetDir?: string) {
+  return assetDir?.replace(/^\/+|\/+$/g, "");
+}
+
+function readImageModule(image: ContentImage) {
+  return typeof image === "string" ? image : image.src;
+}
+
+function resolveImageSrc(src: string, assetDir?: string, assetBase?: string) {
+  if (
+    /^(https?:)?\/\//.test(src) ||
+    src.startsWith("/") ||
+    src.startsWith("data:")
+  ) {
     return src;
   }
 
-  const normalizedAssetDir = assetDir?.replace(/^\/+|\/+$/g, "");
+  const normalizedAssetDir = normalizeAssetDir(assetDir);
+  const pageAssetBase = assetBase ?? getPageAssetBase();
   const candidates = [
-    normalizedAssetDir && `/src/content/blog/assets/${normalizedAssetDir}/${src}`,
-    `/src/content/blog/assets/${src}`,
+    normalizedAssetDir &&
+      "/src/content/blog/" + normalizedAssetDir + "/assets/" + src,
+    normalizedAssetDir &&
+      "/src/content/notes/" + normalizedAssetDir + "/assets/" + src,
+    normalizedAssetDir &&
+      "/src/content/projects/" + normalizedAssetDir + "/assets/" + src,
+    pageAssetBase && pageAssetBase + "/" + src,
+    "/src/assets/" + src,
   ].filter(Boolean) as string[];
 
-  const image = candidates.map((candidate) => blogImages[candidate]).find(Boolean);
+  const image = candidates
+    .map((candidate) => imageModules[candidate])
+    .find((candidate): candidate is ContentImage => Boolean(candidate));
   if (!image) return src;
 
-  return typeof image === "string" ? image : image.src;
+  return readImageModule(image);
 }
 
 export default function ImageList({
   images,
   assetDir,
+  assetBase: explicitAssetBase,
   imageProps,
 }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [assetBase, setAssetBase] = useState(
+    () => explicitAssetBase ?? getPageAssetBase(),
+  );
+
+  useEffect(() => {
+    if (explicitAssetBase) return;
+
+    const article = containerRef.current?.closest(
+      "article[data-content-assets]",
+    );
+    if (article instanceof HTMLElement) {
+      setAssetBase(article.dataset.contentAssets);
+    }
+  }, [explicitAssetBase]);
   const resolvedImages = useMemo(
     () =>
       images.map((image) => ({
         ...image,
-        src: resolveImageSrc(image.src, assetDir),
+        src: resolveImageSrc(image.src, assetDir, assetBase),
       })),
-    [assetDir, images],
+    [assetBase, assetDir, images],
   );
 
   if (!images.length) return null;
@@ -62,6 +126,7 @@ export default function ImageList({
   return (
     <>
       <div
+        ref={containerRef}
         className="not-prose relative left-1/2 w-fit min-w-full max-w-[calc(100vw-64px)] -translate-x-1/2 overflow-x-auto overscroll-x-contain"
         aria-label="Image list"
       >
@@ -69,7 +134,7 @@ export default function ImageList({
           {resolvedImages.map((image, index) => (
             <figure
               className="group m-0 min-w-0"
-              key={`${image.title}-${image.src}`}
+              key={`${image.title ?? image.src}-${image.src}`}
             >
               <button
                 className="block cursor-zoom-in appearance-none overflow-hidden rounded border border-black/10 bg-white/40 p-1 transition-colors duration-200 group-hover:border-accent group-hover:bg-accent/10 dark:border-white/10 dark:bg-white/[0.04] dark:group-hover:border-accent dark:group-hover:bg-accent/15"
@@ -78,15 +143,17 @@ export default function ImageList({
               >
                 <img
                   {...imageProps}
-                  alt={image.alt ?? image.title}
+                  alt={image.alt ?? image.title ?? ""}
                   className="m-0 h-[180px] w-auto max-w-[280px] rounded-sm object-contain"
                   loading={imageProps?.loading ?? "lazy"}
                   src={image.src}
                 />
               </button>
-              <figcaption className="px-3 py-2 text-center font-sans text-sm font-medium text-black/70 transition-colors duration-200 group-hover:text-accent dark:text-white/75 dark:group-hover:text-accent">
-                {image.title}
-              </figcaption>
+              {image.title && (
+                <figcaption className="px-3 py-2 text-center font-sans text-sm font-medium text-black/70 transition-colors duration-200 group-hover:text-accent dark:text-white/75 dark:group-hover:text-accent">
+                  {image.title}
+                </figcaption>
+              )}
             </figure>
           ))}
         </div>

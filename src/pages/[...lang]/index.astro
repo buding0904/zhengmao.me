@@ -5,7 +5,7 @@ import PageLayout from "@layouts/PageLayout.astro";
 import ArrowCard from "@components/ArrowCard.astro";
 import Link from "@components/Link.astro";
 import ConnectSection from "@components/ConnectSection.astro";
-import { dateRange } from "@lib/utils";
+import { contentLang } from "@lib/utils";
 import { SITE, HOME } from "@consts";
 import { useTranslations, langBase, getLangStaticPaths, getBioLines } from "@i18n";
 import type { Lang } from "@i18n";
@@ -21,26 +21,19 @@ const base = langBase(lang);
 const bioLines = getBioLines(lang);
 
 const blog = (await getCollection("blog"))
-  .filter(post => !post.data.draft && (post.data.lang ?? "en") === lang)
+  .filter(post => !post.data.draft && contentLang(post) === lang)
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
   .slice(0, SITE.NUM_POSTS_ON_HOMEPAGE);
 
+const notes = (await getCollection("notes"))
+  .filter(note => !note.data.draft && contentLang(note) === lang)
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
+  .slice(0, SITE.NUM_NOTES_ON_HOMEPAGE);
+
 const projects = (await getCollection("projects"))
-  .filter(p => !p.data.draft && (p.data.lang ?? "en") === lang)
+  .filter(p => !p.data.draft && contentLang(p) === lang)
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
   .slice(0, SITE.NUM_PROJECTS_ON_HOMEPAGE);
-
-const allwork = (await getCollection("work"))
-  .filter(w => (w.data.lang ?? "en") === lang)
-  .sort((a, b) => new Date(b.data.dateStart).valueOf() - new Date(a.data.dateStart).valueOf())
-  .slice(0, SITE.NUM_WORKS_ON_HOMEPAGE);
-
-const work = await Promise.all(
-  allwork.map(async (item) => {
-    const { Content } = await item.render();
-    return { ...item, Content };
-  })
-);
 ---
 
 <PageLayout title={HOME.TITLE} description={HOME.DESCRIPTION}>
@@ -73,31 +66,21 @@ const work = await Promise.all(
         </section>
       )}
 
-      <section class="animate space-y-6">
-        <div class="flex flex-wrap gap-y-2 items-center justify-between">
-          <h5 class="font-semibold text-black dark:text-white">
-            {t("home.workExperience")}
-          </h5>
-          <Link href={`${base}/work`}>{t("home.seeAllWork")}</Link>
-        </div>
-        <ul class="flex flex-col space-y-4">
-          {work.map(entry => (
-            <li>
-              <div class="font-semibold text-black dark:text-white">
-                {entry.data.company}
-              </div>
-              <div class="text-sm opacity-75 flex items-center gap-2">
-                <span>{entry.data.role}</span>
-                <span>-</span>
-                <span>
-                  {dateRange(entry.data.dateStart, entry.data.dateEnd)}
-                </span>
-              </div>
-              <article><entry.Content /></article>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {notes.length > 0 && (
+        <section class="animate space-y-6">
+          <div class="flex flex-wrap gap-y-2 items-center justify-between">
+            <h5 class="font-semibold text-black dark:text-white">
+              {t("home.latestNotes")}
+            </h5>
+            <Link href={`${base}/notes`}>{t("home.seeAllNotes")}</Link>
+          </div>
+          <ul class="flex flex-col gap-4">
+            {notes.map(note => (
+              <li><ArrowCard entry={note} lang={lang} /></li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section class="animate space-y-6">
         <div class="flex flex-wrap gap-y-2 items-center justify-between">

@@ -3,6 +3,7 @@ import { type CollectionEntry, getCollection } from "astro:content";
 import PageLayout from "@layouts/PageLayout.astro";
 import Container from "@components/Container.astro";
 import ArrowCard from "@components/ArrowCard.astro";
+import { contentLang } from "@lib/utils";
 import { BLOG } from "@consts";
 import { useTranslations, getLangStaticPaths } from "@i18n";
 import type { Lang } from "@i18n";
@@ -16,7 +17,7 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 
 const data = (await getCollection("blog"))
-  .filter(post => !post.data.draft && (post.data.lang ?? "en") === lang)
+  .filter(post => !post.data.draft && contentLang(post) === lang)
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 
 type Acc = { [year: string]: CollectionEntry<"blog">[] };

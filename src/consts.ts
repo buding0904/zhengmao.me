@@ -4,7 +4,7 @@ export const SITE: Site = {
   NAME: "Mao",
   EMAIL: "zhengmao0613@gmail.com",
   NUM_POSTS_ON_HOMEPAGE: 3,
-  NUM_WORKS_ON_HOMEPAGE: 2,
+  NUM_NOTES_ON_HOMEPAGE: 3,
   NUM_PROJECTS_ON_HOMEPAGE: 3,
 };
 
@@ -19,9 +19,9 @@ export const BLOG: Metadata = {
     "Articles on frontend engineering and things I find interesting.",
 };
 
-export const WORK: Metadata = {
-  TITLE: "Work",
-  DESCRIPTION: "Where I have worked and what I have done.",
+export const NOTES: Metadata = {
+  TITLE: "Notes",
+  DESCRIPTION: "Short notes, thoughts, and casual writing.",
 };
 
 export const PROJECTS: Metadata = {

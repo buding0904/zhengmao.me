@@ -7,19 +7,16 @@ const blog = defineCollection({
     description: z.string(),
     date: z.coerce.date(),
     draft: z.boolean().optional(),
-    lang: z.enum(["en", "zh"]).optional().default("en"),
-    canonicalSlug: z.string().optional(), // shared slug across languages
   }),
 });
 
-const work = defineCollection({
+const notes = defineCollection({
   type: "content",
   schema: z.object({
-    company: z.string(),
-    role: z.string(),
-    dateStart: z.coerce.date(),
-    dateEnd: z.union([z.coerce.date(), z.string()]),
-    lang: z.enum(["en", "zh"]).optional().default("en"),
+    title: z.string(),
+    description: z.string(),
+    date: z.coerce.date(),
+    draft: z.boolean().optional(),
   }),
 });
 
@@ -32,9 +29,7 @@ const projects = defineCollection({
     draft: z.boolean().optional(),
     demoURL: z.string().optional(),
     repoURL: z.string().optional(),
-    lang: z.enum(["en", "zh"]).optional().default("en"),
-    canonicalSlug: z.string().optional(), // shared slug across languages
   }),
 });
 
-export const collections = { blog, work, projects };
+export const collections = { blog, notes, projects };

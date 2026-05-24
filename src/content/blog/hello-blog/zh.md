@@ -2,8 +2,6 @@
 title: "Hello blog!"
 description: "历时 7 年，我也算是拥有自己的博客了🤪"
 date: "Feb 6 2026"
-lang: "zh"
-canonicalSlug: "hello-blog"
 ---
 
 我是 2018 年参加的工作，其实在工作后一直都有创建一个个人博客的想法，但是由于总总原因，总是搁置这个想法，例如：

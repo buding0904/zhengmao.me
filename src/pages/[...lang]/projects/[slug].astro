@@ -3,7 +3,7 @@ import { type CollectionEntry, getCollection } from "astro:content";
 import PageLayout from "@layouts/PageLayout.astro";
 import Container from "@components/Container.astro";
 import FormattedDate from "@components/FormattedDate.astro";
-import { readingTime } from "@lib/utils";
+import { contentAssetBase, contentLang, contentSlug, readingTime } from "@lib/utils";
 import BackToPrev from "@components/BackToPrev.astro";
 import Link from "@components/Link.astro";
 import { LANGUAGES, useTranslations, langBase } from "@i18n";
@@ -15,11 +15,11 @@ export async function getStaticPaths() {
 
   return Object.keys(LANGUAGES).flatMap((lang) =>
     projects
-      .filter(p => (p.data.lang ?? "en") === lang)
+      .filter(p => contentLang(p) === lang)
       .map((project) => ({
         params: {
           lang: lang === "en" ? undefined : lang,
-          slug: project.data.canonicalSlug ?? project.slug,
+          slug: contentSlug(project),
         },
         props: { project, lang: lang as Lang },
       }))
@@ -69,7 +69,7 @@ const base = langBase(lang);
         </nav>
       )}
     </div>
-    <article class="animate">
+    <article class="animate" data-content-assets={contentAssetBase(project)}>
       <Content />
     </article>
   </Container>

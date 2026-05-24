@@ -15,26 +15,28 @@ export function formatDate(date: Date) {
 
 export function readingTime(html: string) {
   const textOnly = html.replace(/<[^>]+>/g, "");
-  const wordCount = textOnly.split(/\s+/).length;
-  const readingTimeMinutes = ((wordCount / 200) + 1).toFixed();
+  const cjkCount = (textOnly.match(/[\u3400-\u9fff\uf900-\ufaff]/g) ?? []).length;
+  const latinWordCount = textOnly
+    .replace(/[\u3400-\u9fff\uf900-\ufaff]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const readingTimeMinutes = Math.max(
+    1,
+    Math.ceil(cjkCount / 500 + latinWordCount / 200),
+  );
   return `${readingTimeMinutes} min read`;
 }
 
-export function dateRange(startDate: Date, endDate?: Date | string): string {
-  const startMonth = startDate.toLocaleString("default", { month: "short" });
-  const startYear = startDate.getFullYear().toString();
-  let endMonth;
-  let endYear;
+export function contentLang(entry: { slug: string }) {
+  const fileName = entry.slug.split("/").pop();
+  return fileName === "zh" ? "zh" : "en";
+}
 
-  if (endDate) {
-    if (typeof endDate === "string") {
-      endMonth = "";
-      endYear = endDate;
-    } else {
-      endMonth = endDate.toLocaleString("default", { month: "short" });
-      endYear = endDate.getFullYear().toString();
-    }
-  }
+export function contentSlug(entry: { slug: string }) {
+  return entry.slug.replace(/\/(?:en|zh)$/, "");
+}
 
-  return `${startMonth}${startYear} - ${endMonth}${endYear}`;
+export function contentAssetBase(entry: { collection: string; slug: string }) {
+  return "/src/content/" + entry.collection + "/" + contentSlug(entry) + "/assets";
 }

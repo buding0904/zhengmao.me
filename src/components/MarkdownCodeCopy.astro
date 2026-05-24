@@ -1,0 +1,85 @@
+<script is:inline>
+  (() => {
+    const copyText = async (text) => {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard API is unavailable.");
+      }
+
+      await navigator.clipboard.writeText(text);
+    };
+
+    const codeLanguage = (pre, code) => {
+      if (pre.dataset.language) return pre.dataset.language;
+
+      const className = Array.from(code.classList)
+        .concat(Array.from(pre.classList))
+        .find((name) => name.startsWith("language-"));
+      return className ? className.replace("language-", "") : "text";
+    };
+
+    const enhanceMarkdownLinks = () => {
+      document.querySelectorAll("article a[href]").forEach((link) => {
+        if (!(link instanceof HTMLAnchorElement)) return;
+        if (link.target) return;
+        if (link.href.startsWith("mailto:") || link.href.startsWith("tel:")) return;
+
+        link.target = "_blank";
+        link.rel = [link.rel, "noopener", "noreferrer"]
+          .filter(Boolean)
+          .join(" ");
+      });
+    };
+
+    const enhanceCodeBlocks = () => {
+      document.querySelectorAll("article pre").forEach((pre) => {
+        if (pre.closest(".markdown-code-block")) return;
+
+        const code = pre.querySelector("code");
+        if (!code) return;
+
+        const wrapper = document.createElement("figure");
+        wrapper.className = "not-prose markdown-code-block";
+
+        const header = document.createElement("figcaption");
+        header.className = "markdown-code-header";
+
+        const lang = document.createElement("span");
+        lang.className = "markdown-code-lang";
+        lang.textContent = codeLanguage(pre, code);
+
+        const button = document.createElement("button");
+        button.className = "markdown-code-copy";
+        button.type = "button";
+        button.textContent = "Copy";
+
+        header.append(lang, button);
+        pre.before(wrapper);
+        wrapper.append(header, pre);
+      });
+    };
+
+    document.addEventListener("click", async (event) => {
+      const button = event.target.closest(".markdown-code-copy");
+      if (!button) return;
+
+      const wrapper = button.closest(".markdown-code-block");
+      const code = wrapper?.querySelector("pre code");
+      if (!code) return;
+
+      await copyText(code.textContent || "");
+      button.textContent = "Copied";
+      window.clearTimeout(Number(button.dataset.resetTimer));
+      button.dataset.resetTimer = String(window.setTimeout(() => {
+        button.textContent = "Copy";
+      }, 1600));
+    });
+
+    const enhanceMarkdown = () => {
+      enhanceMarkdownLinks();
+      enhanceCodeBlocks();
+    };
+
+    document.addEventListener("astro:page-load", enhanceMarkdown);
+    enhanceMarkdown();
+  })();
+</script>

@@ -2,7 +2,6 @@
 title: "Hello blog!"
 description: "Seven years later, I finally have a blog of my own 🤪"
 date: "Feb 6 2026"
-canonicalSlug: "hello-blog"
 ---
 
 I started working in 2018, and ever since then I had this recurring thought: one day I should really build myself a personal blog.

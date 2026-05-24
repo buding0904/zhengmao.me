@@ -7,6 +7,14 @@ import tailwind from "@astrojs/tailwind";
 export default defineConfig({
   site: "https://zhengmao.me",
   integrations: [mdx(), react(), sitemap(), tailwind()],
+  vite: {
+    optimizeDeps: {
+      include: [
+        "yet-another-react-lightbox",
+        "yet-another-react-lightbox/plugins/zoom",
+      ],
+    },
+  },
   i18n: {
     defaultLocale: "en",
     locales: ["en", "zh"],

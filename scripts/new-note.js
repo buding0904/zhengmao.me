@@ -7,7 +7,7 @@ import { stdin as input, stdout as output } from "node:process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
-const contentDir = path.join(rootDir, "src", "content", "blog");
+const contentDir = path.join(rootDir, "src", "content", "notes");
 
 const rl = readline.createInterface({ input, output });
 
@@ -85,7 +85,7 @@ function formatDate(date) {
   }).format(date);
 }
 
-function buildPost({ title, description, date, draft }) {
+function buildNote({ title, description, date, draft }) {
   const frontmatter = [
     "---",
     "title: \"" + escapeYaml(title) + "\"",
@@ -103,7 +103,7 @@ function buildPost({ title, description, date, draft }) {
 }
 
 async function main() {
-  console.log("Create a new blog post\n");
+  console.log("Create a new note\n");
 
   const enTitle = await askRequired("English title: ");
   const enDescription = await askRequired("English description: ");
@@ -142,7 +142,7 @@ async function main() {
 
   if (existingEntry) {
     throw new Error(
-      "Blog post already exists: " +
+      "Note already exists: " +
         path.relative(rootDir, path.join(contentDir, existingEntry.fileName)),
     );
   }
@@ -154,7 +154,7 @@ async function main() {
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(
       filePath,
-      buildPost({ ...entry, date, draft }),
+      buildNote({ ...entry, date, draft }),
       "utf8",
     );
   }

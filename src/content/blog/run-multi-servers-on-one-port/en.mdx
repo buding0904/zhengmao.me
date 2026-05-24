@@ -1,0 +1,363 @@
+---
+title: "How Many Services Can Run on One Port?"
+description: "In previous frontend work, I once ran into a case where IPv4 and IPv6 services were started on the same port, which made the page always show the wrong content. Why did that happen? And how many services can actually run on one port?"
+date: "May 21, 2026"
+---
+
+import ImageList from "@components/ImageList";
+
+In my past learning and work, my understanding was that "only one service can run on one port", but I had never looked into it deeply. I had simply treated it as common sense.
+
+However, in previous frontend development, I ran into this problem: when starting a local frontend project, visiting the corresponding port always showed the wrong page. It turned out that another `ipv6` frontend service was already running on that port, so I was actually accessing that `ipv6` service. I had doubts at the time, but never studied the issue carefully. This time, let's spend some time understanding it thoroughly.
+
+## Reproducing the Scenario
+
+Reproducing this problem is very simple. We can directly use `node` to start two `http` services on the same port.
+
+```typescript
+import { createServer } from "node:http";
+
+const PORT = 8000;
+
+createServer((_, res) => res.end("ipv4 server"))
+  .on("listening", () => console.log(`ipv4 server is listening on port ${PORT}`))
+  .on("error", (error) => console.error(`ipv4 server failed to listen on port ${PORT}`, error))
+  .listen(PORT, "0.0.0.0");
+
+createServer((_, res) => res.end("ipv6 server"))
+  .on("listening", () => console.log(`ipv6 server is listening on port ${PORT}`))
+  .on("error", (error) => console.error(`ipv6 server failed to listen on port ${PORT}`, error))
+  .listen({ port: PORT, host: "::", ipv6Only: true });
+```
+
+> `::` is shorthand for `0:0:0:0:0:0:0:0`, equivalent to `0.0.0.0` in `ipv4`.
+
+When we run this code, both `http server`s start successfully, and both are on port `8000`.
+We can use the `lsof` command to inspect the system's port usage as a check.
+
+![result](./assets/1.jpg)
+
+From the image, we can indeed see that two services are running on port `8000` at the same time: one is `ipv4`, and the other is `ipv6`. But if you visit the page now, you will find that it always returns the `ipv6` result.
+
+![result](./assets/2.jpg)
+
+This phenomenon raises several questions:
+
+- Why can multiple services run on one port? Are there any limits?
+- Can two `ipv4` or two `ipv6` services run on the same port? If not, why not?
+- After `ipv4` and `ipv6` services run on the same port, why does it always return the `ipv6` service? Who decides their order?
+- What is the maximum number of services that can run on the same port?
+
+Next, let's understand these questions step by step.
+
+## Designing It Ourselves First
+
+At the beginning, let's not look at the current implementation. It is easy to fall into a pile of concepts, such as the `OSI seven-layer model`, `ports`, `protocols`, and so on. Instead, let's start from the most basic logic and try to design a network communication model from the simplest requirements. When the design gets stuck, we can then look at how real systems solve the problem. This makes it clearer why these concepts were created in the first place.
+
+Our goal is to solve this problem: many programs/services run on a computer at the same time, such as a browser, editor, local dev server, database, and so on. If a network packet arrives at this computer, how does the operating system know which service should receive the data?
+
+The easiest solution to think of is to assign each service an identifier.
+
+```txt
+Service A -> 8000
+Service B -> 3000
+Service C -> 5432
+```
+
+This way, as long as the packet carries the target identifier, the operating system can deliver the data to the corresponding service based on that identifier. This identifier is what we usually call a port.
+
+If we stop here, the statement "only one service can run on one port" seems reasonable. In the current design, a port is the unique identifier of a service. If two services both occupy port `8000`, the system obviously would not know which one should receive the data, so a conflict would occur.
+
+Now we face the first design question: how many port numbers should there be?
+
+The first thing that comes to mind is using an unsigned numeric type to represent ports, such as `uint8`, `uint16`, `uint32`, or `uint64`. Let's analyze the number of ports each type supports and the space it uses.
+
+| Type     | Number of representable ports | Space usage |
+| -------- | ----------------------------- | ----------- |
+| `uint8`  | 2^8 = 256                     | 1 byte      |
+| `uint16` | 2^16 = 65536                  | 2 bytes     |
+| `uint32` | 2^32 = 4294967296             | 4 bytes     |
+| `uint64` | 2^64 = 18446744073709551616   | 8 bytes     |
+
+Considering early network communication design, memory, bandwidth, and CPU were all much more constrained than they are today, and network links were much slower. So we would want to choose a type that uses as little space as possible while still providing enough values. `uint32` and `uint64` are not cost-effective, mainly because it is unlikely that so many services would simultaneously send and receive data on one computer. Also, network packets are transmitted in large quantities between machines, so each extra byte can create a lot of unnecessary waste. But `int8` only supports `256` ports, which feels insufficient. So `uint16` is the best choice: it only uses `2 bytes` and supports `65536` ports, which is a good balance.
+
+So we can see that this number matches the current port range of `0~65535`. That suggests our understanding is not far from reality.
+
+## Ports Cannot Be Separated from Protocols
+
+Now we need to introduce the concept of a `protocol`, because different services may use different transport protocols, such as `TCP` and `UDP`.
+
+Suppose we now have two services, and both want to use port `8000`:
+
+```txt
+TCP service -> 8000
+UDP service -> 8000
+```
+
+According to our current design, since `8000` is already occupied by the TCP service, the UDP service that starts later definitely cannot use port `8000` anymore.
+
+Back to our original requirement: we designed ports so different services can send and receive data on the same system, and so the system can accurately find the corresponding service.
+
+But before a packet enters "port dispatch", it already belongs to a certain protocol. A `TCP` packet and a `UDP` packet are not the same thing. They have different protocol headers and different handling methods. Since the protocols are different, they do not need to conflict with each other. The system can still accurately deliver each packet to the corresponding service.
+
+Of course, the protocol here can only be a transport-layer protocol, because ports themselves are part of the transport layer.
+
+> You might wonder why ports have to be in the transport layer. My understanding is this: from the physical layer to the network layer, the goal is to find the corresponding device. In these layers, caring about `ports` is clearly not appropriate, because their purpose is not to distinguish services, but to find the corresponding device. The transport layer starts to involve the rules of data transmission, which means it cares about where data is sent and where data is received from.
+
+So our model now becomes:
+
+```txt
+Transport-layer protocol + port = unique service identifier
+```
+
+Based on this conclusion, we can at least determine that the same port can run both a `TCP` and a `UDP` service at the same time. We can test this with the following code:
+
+```typescript
+import { createSocket } from "node:dgram";
+import { createServer } from "node:net";
+
+const PORT = 8000;
+
+createServer((socket) => socket.end("tcp ipv4 server"))
+  .on("listening", () => console.log(`tcp ipv4 server is listening on port ${PORT}`))
+  .on("error", (error) => console.error(`tcp ipv4 server failed to listen on port ${PORT}`, error))
+  .listen(PORT, "0.0.0.0");
+
+const udpServer = createSocket("udp4")
+  .on("listening", () => console.log(`udp ipv4 server is listening on port ${PORT}`))
+  .on("message", (message, remote) => {
+    udpServer.send("udp ipv4 server", remote.port, remote.address);
+  })
+  .on("error", (error) => console.error(`udp ipv4 server failed to listen on port ${PORT}`, error))
+  .bind(PORT, "0.0.0.0");
+```
+
+After running it, continue using the `lsof` command to inspect port usage.
+
+![result](./assets/3.jpg)
+
+We can see that both `TCP` and `UDP` services are running on port `8000`.
+
+> `UDP` only has `bind`; it does not have a `listen` state, so there is no `LISTEN` marker.
+
+We can also test it with the `nc` tool.
+
+![result](./assets/4.jpg)
+
+## Ports Cannot Be Separated from Addresses
+
+So far, we can explain why `TCP` and `UDP` can use the same port number, but the model still assumes that "one machine has only one network address".
+
+In reality, that is not true. A machine usually has more than one address.
+
+For example, there is the local loopback address `127.0.0.1`, a LAN address such as `192.168.x.x`, and a special address `0.0.0.0`.
+
+Here we encounter a new question: if a packet has the same target port and the same protocol, but a different target address, should the system deliver it to a different service?
+
+For example, two TCP services both use `8000`, but one only accepts local access, while the other only accepts LAN access.
+
+Under the current design, they would still conflict, because both are `TCP 8000`. But from the packet itself, they can actually be distinguished:
+
+```txt
+TCP / 127.0.0.1 / 8000
+TCP / 192.168.x.x / 8000
+```
+
+When a client visits `127.0.0.1:8000` and `192.168.x.x:8000`, the target IPs are already different. Since that is the case, the operating system can completely include the address in its dispatch rules.
+
+So our design becomes:
+
+```txt
+Local address + transport-layer protocol + port = service
+```
+
+> The `0.0.0.0` address is a bit special. It is a wildcard address. Listening on `0.0.0.0` is equivalent to listening on all local IPv4 addresses. So if one service has already bound `0.0.0.0:8000`, and another service then tries to bind `127.0.0.1:8000`, it will usually conflict. That is because `127.0.0.1` is already included in "all IPv4 addresses".
+
+Based on this conclusion, we know that both `TCP` and `UDP` can bind to different local addresses. We can test it:
+
+```typescript
+import { createSocket } from "node:dgram";
+import { createServer } from "node:net";
+
+const PORT = 8000;
+
+createServer((socket) => socket.end("tcp 127.0.0.1 server"))
+  .on("listening", () => console.log(`tcp 127.0.0.1 server is listening on port ${PORT}`))
+  .on("error", (error) => console.error(`tcp 127.0.0.1 server failed to listen on port ${PORT}`, error))
+  .listen(PORT, "127.0.0.1");
+
+createServer((socket) => socket.end("tcp 192.168.31.65 server"))
+  .on("listening", () => console.log(`tcp 192.168.31.65 server is listening on port ${PORT}`))
+  .on("error", (error) => console.error(`tcp 192.168.31.65 server failed to listen on port ${PORT}`, error))
+  .listen(PORT, "192.168.31.65");
+
+const udpLocalhostServer = createSocket("udp4")
+  .on("listening", () => console.log(`udp 127.0.0.1 server is listening on port ${PORT}`))
+  .on("message", (_, remote) => {
+    udpLocalhostServer.send("udp 127.0.0.1 server", remote.port, remote.address);
+  })
+  .on("error", (error) => console.error(`udp 127.0.0.1 server failed to listen on port ${PORT}`, error))
+  .bind(PORT, "127.0.0.1");
+
+const udpLanServer = createSocket("udp4")
+  .on("listening", () => console.log(`udp 192.168.31.65 server is listening on port ${PORT}`))
+  .on("message", (_, remote) => {
+    udpLanServer.send("udp 192.168.31.65 server", remote.port, remote.address);
+  })
+  .on("error", (error) => console.error(`udp 192.168.31.65 server failed to listen on port ${PORT}`, error))
+  .bind(PORT, "192.168.31.65");
+```
+
+After running it, use the `lsof` command again to inspect port usage.
+
+![result](./assets/5.jpg)
+
+Test result from the `nc` tool:
+
+![result](./assets/6.jpg)
+
+We can see that each one is indeed an independent service. At this point, our idea and design match the real behavior.
+
+## IPv4 and IPv6
+
+In our current design, we have only considered `ipv4` addresses. But in reality, `ipv6` addresses also exist. There is no essential difference here; they are just different address representations, and both are `IP addresses`.
+
+So the current design should also be directly compatible with `ipv6`. That means we should be able to run `ipv4` and `ipv6` services separately under both `TCP` and `UDP`.
+
+We can test this with the following code:
+
+```typescript
+import { createSocket } from "node:dgram";
+import { createServer } from "node:net";
+
+const PORT = 8000;
+const IPV4_HOST = "127.0.0.1";
+const IPV6_HOST = "fe80::2605:dc4d:cabd:284c%utun0";
+
+createServer((socket) => socket.end("tcp ipv4 server"))
+  .on("listening", () => console.log(`tcp ipv4 server is listening on ${IPV4_HOST}:${PORT}`))
+  .on("error", (error) => console.error(`tcp ipv4 server failed to listen on ${IPV4_HOST}:${PORT}`, error))
+  .listen(PORT, IPV4_HOST);
+
+createServer((socket) => socket.end("tcp ipv6 server"))
+  .on("listening", () => console.log(`tcp ipv6 server is listening on [${IPV6_HOST}]:${PORT}`))
+  .on("error", (error) => console.error(`tcp ipv6 server failed to listen on [${IPV6_HOST}]:${PORT}`, error))
+  .listen(PORT, IPV6_HOST);
+
+const udpIpv4Server = createSocket("udp4")
+  .on("listening", () => console.log(`udp ipv4 server is listening on ${IPV4_HOST}:${PORT}`))
+  .on("message", (_, remote) => {
+    udpIpv4Server.send("udp ipv4 server", remote.port, remote.address);
+  })
+  .on("error", (error) => console.error(`udp ipv4 server failed to listen on ${IPV4_HOST}:${PORT}`, error))
+  .bind(PORT, IPV4_HOST);
+
+const udpIpv6Server = createSocket("udp6")
+  .on("listening", () => console.log(`udp ipv6 server is listening on [${IPV6_HOST}]:${PORT}`))
+  .on("message", (_, remote) => {
+    udpIpv6Server.send("udp ipv6 server", remote.port, remote.address);
+  })
+  .on("error", (error) => console.error(`udp ipv6 server failed to listen on [${IPV6_HOST}]:${PORT}`, error))
+  .bind(PORT, IPV6_HOST);
+```
+
+The result is shown below, and it matches our expectation.
+
+![result](./assets/7.jpg)
+
+## Can Multiple Services Bind the Same Address and Port?
+
+In our current design, `local address + transport-layer protocol + port` is a unique identifier and cannot be duplicated. We can test what happens if they are exactly the same:
+
+```typescript
+import { createServer } from "node:net";
+
+const PORT = 8000;
+const HOST = "127.0.0.1";
+
+createServer((socket) => socket.end("first tcp server"))
+  .on("listening", () => console.log(`first tcp server is listening on ${HOST}:${PORT}`))
+  .on("error", (error) => console.error(`first tcp server failed to listen on ${HOST}:${PORT}`, error))
+  .listen(PORT, HOST);
+
+createServer((socket) => socket.end("second tcp server"))
+  .on("listening", () => console.log(`second tcp server is listening on ${HOST}:${PORT}`))
+  .on("error", (error) => console.error(`second tcp server failed to listen on ${HOST}:${PORT}`, error))
+  .listen(PORT, HOST);
+```
+
+When running it, we get the following error:
+
+![result](./assets/8.jpg)
+
+Clearly, from the system's perspective, if two services have exactly the same address, protocol, and port, it cannot distinguish which service should receive the packet.
+
+However, when you ask AI, you may find that `SO_REUSEPORT` can be used to force multiple services to run on the same `local address + transport-layer protocol + port`. The code looks like this:
+
+```typescript
+import { createServer } from "node:net";
+
+const PORT = 8000;
+const HOST = "127.0.0.1";
+
+createServer((socket) => socket.end("first tcp server"))
+  .on("listening", () => console.log(`first tcp server is listening on ${HOST}:${PORT}`))
+  .on("error", (error) => console.error(`first tcp server failed to listen on ${HOST}:${PORT}`, error))
+  .listen({ port: PORT, host: HOST, reusePort: true });
+
+createServer((socket) => socket.end("second tcp server"))
+  .on("listening", () => console.log(`second tcp server is listening on ${HOST}:${PORT}`))
+  .on("error", (error) => console.error(`second tcp server failed to listen on ${HOST}:${PORT}`, error))
+  .listen({ port: PORT, host: HOST, reusePort: true });
+```
+
+After running it, there is no error, and the `lsof` result is shown below.
+
+![result](./assets/9.jpg)
+
+Also, when you access it, you will find that it always connects to the second TCP service.
+
+![result](./assets/10.jpg)
+
+We will not explore this issue here. Maybe you can try to figure it out yourself:
+
+1. How many services can run on the same `local address + transport-layer protocol + port` at most?
+2. Does the later-created service always override the previous one? What strategy does the system use?
+
+So the conclusion is: under normal circumstances, multiple services cannot run on the same `local address + transport-layer protocol + port`, unless `SO_REUSEPORT` is used.
+
+## Why Does Accessing localhost Always Reach the IPv6 Service?
+
+First, `ipv4` and `ipv6` can run independent services. So the problem lies in the path where `localhost` is resolved to a `local address`.
+
+From the previous `curl` result, we can clearly see that `localhost` resolves to both `ipv6` and `ipv4` addresses, but the `ipv6` address is tried first.
+
+After checking the relevant material, I found that [RFC 6724](https://www.rfc-editor.org/rfc/rfc6724.html#section-10.3) defines related behavior:
+
+The default policy table gives IPv6 addresses higher precedence than IPv4 addresses; when both are equally suitable, IPv6 is ordered first.
+
+So in general, we can say that most modern software/tools tend to resolve domain names to `ipv6` addresses first.
+
+## Summary
+
+Now we can answer the questions raised at the beginning.
+
+### Why can multiple services run on one port? Are there any limits?
+
+Because the system uses `local address + transport-layer protocol + port` as the unique identifier. So as long as the `local address + transport-layer protocol` is different, services can run on the same port.
+
+### Can two `ipv4` or two `ipv6` services run on the same port? If not, why not?
+
+On the same port, if all services use the `TCP` protocol, multiple `ipv4` addresses can run at the same time. The same address can also be used if the services are `TCP` and `UDP` respectively.
+
+### After `ipv4` and `ipv6` services run on the same port, why does it always return the `ipv6` service? Who decides their order?
+
+According to [RFC 6724](https://www.rfc-editor.org/rfc/rfc6724.html#section-10.3), we can only say that modern software/tools usually try `ipv6` first, and then `ipv4`.
+
+### What is the maximum number of services that can run on the same port?
+
+Without considering `SO_REUSEPORT`, the maximum number of services that can run on the same port depends on the number of `ipv4` and `ipv6` addresses, multiplied by 2 (the two protocols).
+
+## Code
+
+The test code used above is available in this [repo](https://github.com/buding0904/run-multi-servers-on-one-port). If you are interested, you can clone it and run it yourself.

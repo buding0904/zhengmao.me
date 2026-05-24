@@ -14,6 +14,7 @@ html.dark {
 html,
 body {
   @apply size-full;
+  letter-spacing: 0.5px;
 }
 
 body {
@@ -62,6 +63,67 @@ article {
   article :not(pre) > code::before,
   article :not(pre) > code::after {
     content: none;
+  }
+
+  article .markdown-code-block {
+    @apply relative left-1/2 my-6 w-fit min-w-full max-w-[calc(100vw-64px)] -translate-x-1/2 overflow-x-auto overscroll-x-contain rounded-md border border-black/10 bg-stone-50/60 font-sans;
+    @apply dark:border-white/10 dark:bg-white/[0.03];
+  }
+
+  article .markdown-code-block pre {
+    @apply m-0 w-max min-w-full overflow-visible rounded-none bg-transparent p-3 text-sm leading-6;
+  }
+
+  article .markdown-code-block code {
+    @apply font-mono;
+  }
+
+  article .markdown-code-header {
+    @apply flex items-center justify-between gap-4 border-b border-black/10 bg-black/[0.025] px-3 py-1.5 text-xs;
+    @apply dark:border-white/10 dark:bg-white/[0.035];
+  }
+
+  article .markdown-code-lang {
+    @apply font-medium uppercase text-black/45 dark:text-white/45;
+  }
+
+  article .markdown-code-copy {
+    @apply rounded px-1 py-0.5 font-medium text-black/45 transition-colors duration-200;
+    @apply hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(64.8%_0.2_131.684_/_0.5)];
+    @apply dark:text-white/50 dark:hover:text-accent;
+  }
+
+  article table {
+    @apply my-6 w-full border-collapse overflow-hidden rounded-md border border-black/10 font-sans text-sm;
+    @apply dark:border-white/10;
+  }
+
+  article thead {
+    @apply bg-black/[0.025] dark:bg-white/[0.035];
+  }
+
+  article th {
+    @apply border border-black/10 px-3 py-2 text-left font-semibold text-black/70;
+    @apply dark:border-white/10 dark:text-white/85;
+  }
+
+  article td {
+    @apply border border-black/10 px-3 py-2 align-top text-black/60;
+    @apply dark:border-white/10 dark:text-white/75;
+  }
+
+  article tbody tr:nth-child(even) {
+    @apply bg-black/[0.015] dark:bg-white/[0.02];
+  }
+
+  article th[align="right"],
+  article td[align="right"] {
+    @apply text-right;
+  }
+
+  article th[align="center"],
+  article td[align="center"] {
+    @apply text-center;
   }
 }
 

@@ -2,7 +2,7 @@ export const ui = {
   en: {
     // Nav
     "nav.blog": "blog",
-    "nav.work": "work",
+    "nav.notes": "notes",
     "nav.projects": "projects",
 
     // Home
@@ -13,8 +13,8 @@ export const ui = {
       "The best time to plant a tree was ten years ago. The second best time is now.",
     "home.latestPosts": "Latest posts",
     "home.seeAllPosts": "See all posts",
-    "home.workExperience": "Work Experience",
-    "home.seeAllWork": "See all work",
+    "home.latestNotes": "Recent notes",
+    "home.seeAllNotes": "See all notes",
     "home.recentProjects": "Recent Projects",
     "home.seeAllProjects": "See all projects",
     "home.connect": "Connect me",
@@ -23,9 +23,9 @@ export const ui = {
     "blog.title": "Blog",
     "blog.backToBlog": "Back to blog",
 
-    // Work
-    "work.title": "Work",
-    "work.present": "Present",
+    // Notes
+    "notes.title": "Notes",
+    "notes.backToNotes": "Back to notes",
 
     // Projects
     "projects.title": "Projects",
@@ -42,7 +42,7 @@ export const ui = {
   zh: {
     // Nav
     "nav.blog": "博客",
-    "nav.work": "经历",
+    "nav.notes": "小记",
     "nav.projects": "项目",
 
     // Home
@@ -52,8 +52,8 @@ export const ui = {
     "home.bio.2": "种一棵树最好的时间是十年前，其次是现在。",
     "home.latestPosts": "最新文章",
     "home.seeAllPosts": "查看全部",
-    "home.workExperience": "工作经历",
-    "home.seeAllWork": "查看全部",
+    "home.latestNotes": "最近小记",
+    "home.seeAllNotes": "查看全部",
     "home.recentProjects": "最近项目",
     "home.seeAllProjects": "查看全部",
     "home.connect": "联系我",
@@ -62,9 +62,9 @@ export const ui = {
     "blog.title": "博客",
     "blog.backToBlog": "返回博客",
 
-    // Work
-    "work.title": "工作经历",
-    "work.present": "至今",
+    // Notes
+    "notes.title": "小记",
+    "notes.backToNotes": "返回小记",
 
     // Projects
     "projects.title": "项目",

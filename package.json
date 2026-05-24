@@ -10,6 +10,7 @@
     "preview:network": "astro preview --host",
     "astro": "astro",
     "new:blog": "node scripts/new-blog.js",
+    "new:note": "node scripts/new-note.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
