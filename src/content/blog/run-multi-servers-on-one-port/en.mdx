@@ -34,7 +34,7 @@ createServer((_, res) => res.end("ipv6 server"))
   .listen({ port: PORT, host: "::", ipv6Only: true });
 ```
 
-> `::` is shorthand for `0:0:0:0:0:0:0:0`, equivalent to `0.0.0.0` in `ipv4`.
+> `::` is shorthand for `0:0:0:0:0:0:0:0`, equivalent to `0.0.0.0` in `ipv4`; both are wildcard addresses.
 
   </Fragment>
   <Fragment slot="result">
@@ -224,6 +224,8 @@ So our design becomes:
 ```txt
 Local address + transport-layer protocol + port = service
 ```
+
+One thing to clarify: this model is mainly about binding a listening service. For an already established `TCP` connection, the system also distinguishes the remote address and remote port.
 
 > The `0.0.0.0` address is a bit special. It is a wildcard address. Listening on `0.0.0.0` is equivalent to listening on all local IPv4 addresses. So if one service has already bound `0.0.0.0:8000`, and another service then tries to bind `127.0.0.1:8000`, it will usually conflict. That is because `127.0.0.1` is already included in "all IPv4 addresses".
 
@@ -432,7 +434,7 @@ bun.exe 29151  mao    5u  IPv4 0x5f7ef352c7bde55      0t0  TCP 127.0.0.1:8000 (L
 bun.exe 29151  mao    6u  IPv4 0x193be1888925d7c5     0t0  TCP 127.0.0.1:8000 (LISTEN)
 ```
 
-Also, when you access it, you will find that it always connects to the second TCP service:
+Also, in this experiment environment, when you access it, you will find that it always connects to the second TCP service:
 
 ```bash
 $ nc 127.0.0.1 8000
@@ -452,7 +454,7 @@ second tcp server%
   </Fragment>
 </Experiment>
 
-We will not explore this issue here. Maybe you can try to figure it out yourself:
+We will not explore this issue here, because the dispatch strategy behind `SO_REUSEPORT` depends on the system implementation. We cannot simply conclude that the later-created service always overrides the previous one. Maybe you can try to figure it out yourself:
 
 1. How many services can run on the same `local address + transport-layer protocol + port` at most?
 2. Does the later-created service always override the previous one? What strategy does the system use?
@@ -469,7 +471,7 @@ After checking the relevant material, I found that [RFC 6724](https://www.rfc-ed
 
 The default policy table gives IPv6 addresses higher precedence than IPv4 addresses; when both are equally suitable, IPv6 is ordered first.
 
-So in general, we can say that most modern software/tools tend to resolve domain names to `ipv6` addresses first.
+So more precisely, it is not necessarily that software "resolves to `ipv6` first". Rather, after multiple candidate addresses are available, most modern software/tools tend to try the `ipv6` address first. This can still be affected by system configuration and application-level behavior.
 
 ## Summary
 
@@ -489,7 +491,7 @@ According to [RFC 6724](https://www.rfc-editor.org/rfc/rfc6724.html#section-10.3
 
 ### What is the maximum number of services that can run on the same port?
 
-Without considering `SO_REUSEPORT`, the maximum number of services that can run on the same port depends on the number of `ipv4` and `ipv6` addresses, multiplied by 2 (the two protocols).
+Without considering `SO_REUSEPORT`, and only discussing `TCP` and `UDP`, the maximum number of services that can run on the same port roughly depends on the number of independently bindable `ipv4` and `ipv6` addresses, multiplied by 2 (the two protocols). Also note that wildcard addresses include specific addresses, so we cannot simply add all addresses together.
 
 ## Code
 
