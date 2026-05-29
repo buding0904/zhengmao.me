@@ -66,16 +66,20 @@ article {
   }
 
   article .markdown-code-block {
-    @apply relative left-1/2 my-6 w-fit min-w-full max-w-[calc(100vw-64px)] -translate-x-1/2 overflow-x-auto overscroll-x-contain rounded-md border border-black/10 bg-stone-50/60 font-sans;
+    @apply my-6 w-full overflow-hidden rounded-md border border-black/10 bg-stone-50/60 font-sans;
     @apply dark:border-white/10 dark:bg-white/[0.03];
   }
 
   article .markdown-code-block pre {
-    @apply m-0 w-max min-w-full overflow-visible rounded-none bg-transparent p-3 text-sm leading-6;
+    @apply m-0 min-w-full whitespace-pre-wrap break-words overflow-visible rounded-none bg-transparent p-3 text-sm leading-6;
   }
 
   article .markdown-code-block code {
-    @apply font-mono;
+    @apply whitespace-pre-wrap break-words font-mono;
+  }
+
+  article .markdown-code-block .line {
+    @apply whitespace-pre-wrap break-words;
   }
 
   article .markdown-code-header {
@@ -124,6 +128,66 @@ article {
   article th[align="center"],
   article td[align="center"] {
     @apply text-center;
+  }
+
+  article .experiment {
+    @apply my-8 font-sans;
+  }
+
+  article .experiment-header {
+    @apply mb-4 border-l-2 border-[oklch(64.8%_0.2_131.684_/_0.7)] pl-4;
+  }
+
+  article .experiment-label {
+    @apply mb-1 text-xs font-semibold uppercase tracking-wide text-accent;
+  }
+
+  article .experiment h3 {
+    @apply m-0 text-base font-semibold leading-6 text-black dark:text-white;
+  }
+
+  article .experiment-header p {
+    @apply mt-1 mb-0 text-sm leading-6 text-black/55 dark:text-white/65;
+  }
+
+  article .experiment-sections {
+    @apply space-y-5;
+  }
+
+  article .experiment-section-title {
+    @apply mb-2 text-xs font-semibold text-black/45 dark:text-white/45;
+  }
+
+  article .experiment-section-body {
+    @apply pl-4;
+  }
+
+  article .experiment-section-body > :first-child {
+    @apply mt-0;
+  }
+
+  article .experiment-section-body > :last-child {
+    @apply mb-0;
+  }
+
+  article .experiment-section-body p {
+    @apply my-4 font-serif text-base leading-7 text-black/50 dark:text-white/75;
+  }
+
+  article .experiment-section-body .markdown-code-block {
+    @apply my-0;
+  }
+
+  article .experiment-section-body table {
+    @apply my-4;
+  }
+
+  article .experiment-section-body blockquote {
+    @apply my-4 border-l-2 border-[oklch(64.8%_0.2_131.684_/_0.5)] pl-3;
+  }
+
+  article .experiment-section-body blockquote p {
+    @apply text-sm text-black/50 dark:text-white/60;
   }
 }
 

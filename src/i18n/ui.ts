@@ -38,6 +38,11 @@ export const ui = {
 
     // Reading time
     readingTime: "min read",
+
+    // Experiment
+    "experiment.label": "Experiment",
+    "experiment.code": "Experiment Code",
+    "experiment.result": "Experiment Result",
   },
   zh: {
     // Nav
@@ -77,6 +82,11 @@ export const ui = {
 
     // Reading time
     readingTime: "分钟阅读",
+
+    // Experiment
+    "experiment.label": "实验",
+    "experiment.code": "实验代码",
+    "experiment.result": "实验结果",
   },
 } as const;
 

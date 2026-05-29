@@ -1,0 +1,34 @@
+---
+import { getLangFromUrl, useTranslations } from "@i18n";
+
+type Props = {
+  title: string;
+  purpose: string;
+};
+
+const { title, purpose } = Astro.props;
+const lang = getLangFromUrl(Astro.url, Astro.currentLocale);
+const t = useTranslations(lang);
+---
+
+<section class="not-prose experiment">
+  <div class="experiment-header">
+    <div class="experiment-label">{t("experiment.label")}</div>
+    <h3>{title}</h3>
+    <p>{purpose}</p>
+  </div>
+  <div class="experiment-sections">
+    <div class="experiment-section">
+      <div class="experiment-section-title">{t("experiment.code")}</div>
+      <div class="experiment-section-body">
+        <slot name="code" />
+      </div>
+    </div>
+    <div class="experiment-section">
+      <div class="experiment-section-title">{t("experiment.result")}</div>
+      <div class="experiment-section-body">
+        <slot name="result" />
+      </div>
+    </div>
+  </div>
+</section>

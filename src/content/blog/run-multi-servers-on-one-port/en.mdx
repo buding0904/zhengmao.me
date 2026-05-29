@@ -4,15 +4,23 @@ description: "In previous frontend work, I once ran into a case where IPv4 and I
 date: "May 21, 2026"
 ---
 
-import ImageList from "@components/ImageList";
+import Experiment from "@components/Experiment.astro";
 
 In my past learning and work, my understanding was that "only one service can run on one port", but I had never looked into it deeply. I had simply treated it as common sense.
 
-However, in previous frontend development, I ran into this problem: when starting a local frontend project, visiting the corresponding port always showed the wrong page. It turned out that another `ipv6` frontend service was already running on that port, so I was actually accessing that `ipv6` service. I had doubts at the time, but never studied the issue carefully. This time, let's spend some time understanding it thoroughly.
+However, in previous frontend development, I ran into this problem: after starting a local frontend project, visiting the corresponding port always showed the wrong page. It turned out that another `ipv6` frontend service was already running on that port, so visiting `localhost` actually reached that `ipv6` service.
+
+I had doubts at the time, but never studied the issue carefully. This time, let's spend some time understanding it thoroughly: is a port really the unique identifier of a service? If not, how many services can actually run on one port?
 
 ## Reproducing the Scenario
 
 Reproducing this problem is very simple. We can directly use `node` to start two `http` services on the same port.
+
+<Experiment
+  title="Starting IPv4 and IPv6 Services on the Same Port"
+  purpose="Verify whether the same port can be listened on by both an IPv4 service and an IPv6 service, and which service localhost reaches."
+>
+  <Fragment slot="code">
 
 ```typescript
 import { createServer } from "node:http";
@@ -20,26 +28,53 @@ import { createServer } from "node:http";
 const PORT = 8000;
 
 createServer((_, res) => res.end("ipv4 server"))
-  .on("listening", () => console.log(`ipv4 server is listening on port ${PORT}`))
-  .on("error", (error) => console.error(`ipv4 server failed to listen on port ${PORT}`, error))
   .listen(PORT, "0.0.0.0");
 
 createServer((_, res) => res.end("ipv6 server"))
-  .on("listening", () => console.log(`ipv6 server is listening on port ${PORT}`))
-  .on("error", (error) => console.error(`ipv6 server failed to listen on port ${PORT}`, error))
   .listen({ port: PORT, host: "::", ipv6Only: true });
 ```
 
 > `::` is shorthand for `0:0:0:0:0:0:0:0`, equivalent to `0.0.0.0` in `ipv4`.
 
-When we run this code, both `http server`s start successfully, and both are on port `8000`.
-We can use the `lsof` command to inspect the system's port usage as a check.
+  </Fragment>
+  <Fragment slot="result">
 
-![result](./assets/1.jpg)
+After running it, we can use `lsof` to inspect the system's port usage:
 
-From the image, we can indeed see that two services are running on port `8000` at the same time: one is `ipv4`, and the other is `ipv6`. But if you visit the page now, you will find that it always returns the `ipv6` result.
+```bash
+$ lsof -nP -i :8000
+COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+bun.exe 12587  mao    5u  IPv4 0xf8d9c4e4614d4d84      0t0  TCP *:8000 (LISTEN)
+bun.exe 12587  mao    6u  IPv6 0xd4b10febdcfe6fcc      0t0  TCP *:8000 (LISTEN)
+```
 
-![result](./assets/2.jpg)
+We can indeed see that two services are running on port `8000` at the same time: one is `ipv4`, and the other is `ipv6`.
+
+But if we visit `localhost:8000` now, it always returns `ipv6 server`. From the `curl -v` output, we can see that `localhost` resolves to both `ipv6` and `ipv4`, but it tries `::1` first.
+
+```bash
+$ curl -v http://localhost:8000
+* Host localhost:8000 was resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+*   Trying [::1]:8000...
+* Connected to localhost (::1) port 8000
+> GET / HTTP/1.1
+> Host: localhost:8000
+> User-Agent: curl/8.7.1
+> Accept: */*
+>
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Date: Sun, 24 May 2026 08:29:17 GMT
+< Content-Length: 11
+<
+* Connection #0 to host localhost left intact
+ipv6 server%
+```
+
+  </Fragment>
+</Experiment>
 
 This phenomenon raises several questions:
 
@@ -110,7 +145,13 @@ So our model now becomes:
 Transport-layer protocol + port = unique service identifier
 ```
 
-Based on this conclusion, we can at least determine that the same port can run both a `TCP` and a `UDP` service at the same time. We can test this with the following code:
+Based on this conclusion, we can at least determine that the same port can run both a `TCP` and a `UDP` service at the same time.
+
+<Experiment
+  title="Starting TCP and UDP Services on the Same Port"
+  purpose="Verify whether the system treats services as conflicting when the port number is the same but the transport-layer protocol is different."
+>
+  <Fragment slot="code">
 
 ```typescript
 import { createSocket } from "node:dgram";
@@ -119,30 +160,43 @@ import { createServer } from "node:net";
 const PORT = 8000;
 
 createServer((socket) => socket.end("tcp ipv4 server"))
-  .on("listening", () => console.log(`tcp ipv4 server is listening on port ${PORT}`))
-  .on("error", (error) => console.error(`tcp ipv4 server failed to listen on port ${PORT}`, error))
   .listen(PORT, "0.0.0.0");
 
 const udpServer = createSocket("udp4")
-  .on("listening", () => console.log(`udp ipv4 server is listening on port ${PORT}`))
-  .on("message", (message, remote) => {
+  .on("message", (_, remote) => {
     udpServer.send("udp ipv4 server", remote.port, remote.address);
   })
-  .on("error", (error) => console.error(`udp ipv4 server failed to listen on port ${PORT}`, error))
   .bind(PORT, "0.0.0.0");
 ```
 
-After running it, continue using the `lsof` command to inspect port usage.
+  </Fragment>
+  <Fragment slot="result">
 
-![result](./assets/3.jpg)
+After running it, continue using `lsof` to inspect port usage:
 
-We can see that both `TCP` and `UDP` services are running on port `8000`.
+```bash
+$ lsof -nP -i :8000
+COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+bun.exe 20422  mao    5u  IPv4 0x51368c9b887f6c85      0t0  TCP *:8000 (LISTEN)
+bun.exe 20422  mao    6u  IPv4 0x98b157675e32ee5e      0t0  UDP *:8000
+```
 
 > `UDP` only has `bind`; it does not have a `listen` state, so there is no `LISTEN` marker.
 
-We can also test it with the `nc` tool.
+We can also test it with the `nc` tool:
 
-![result](./assets/4.jpg)
+```bash
+$ nc 127.0.0.1 8000
+tcp ipv4 server%
+$ nc -u 127.0.0.1 8000
+hello
+udp ipv4 server
+```
+
+We can see that both `TCP` and `UDP` services are running on port `8000`.
+
+  </Fragment>
+</Experiment>
 
 ## Ports Cannot Be Separated from Addresses
 
@@ -173,7 +227,13 @@ Local address + transport-layer protocol + port = service
 
 > The `0.0.0.0` address is a bit special. It is a wildcard address. Listening on `0.0.0.0` is equivalent to listening on all local IPv4 addresses. So if one service has already bound `0.0.0.0:8000`, and another service then tries to bind `127.0.0.1:8000`, it will usually conflict. That is because `127.0.0.1` is already included in "all IPv4 addresses".
 
-Based on this conclusion, we know that both `TCP` and `UDP` can bind to different local addresses. We can test it:
+Based on this conclusion, we know that both `TCP` and `UDP` can bind to different local addresses.
+
+<Experiment
+  title="Binding the Same Port to Different IPv4 Addresses"
+  purpose="Verify whether the system can dispatch traffic to different services when the port and protocol are the same but the local address is different."
+>
+  <Fragment slot="code">
 
 ```typescript
 import { createSocket } from "node:dgram";
@@ -182,41 +242,57 @@ import { createServer } from "node:net";
 const PORT = 8000;
 
 createServer((socket) => socket.end("tcp 127.0.0.1 server"))
-  .on("listening", () => console.log(`tcp 127.0.0.1 server is listening on port ${PORT}`))
-  .on("error", (error) => console.error(`tcp 127.0.0.1 server failed to listen on port ${PORT}`, error))
   .listen(PORT, "127.0.0.1");
 
 createServer((socket) => socket.end("tcp 192.168.31.65 server"))
-  .on("listening", () => console.log(`tcp 192.168.31.65 server is listening on port ${PORT}`))
-  .on("error", (error) => console.error(`tcp 192.168.31.65 server failed to listen on port ${PORT}`, error))
   .listen(PORT, "192.168.31.65");
 
 const udpLocalhostServer = createSocket("udp4")
-  .on("listening", () => console.log(`udp 127.0.0.1 server is listening on port ${PORT}`))
   .on("message", (_, remote) => {
     udpLocalhostServer.send("udp 127.0.0.1 server", remote.port, remote.address);
   })
-  .on("error", (error) => console.error(`udp 127.0.0.1 server failed to listen on port ${PORT}`, error))
   .bind(PORT, "127.0.0.1");
 
 const udpLanServer = createSocket("udp4")
-  .on("listening", () => console.log(`udp 192.168.31.65 server is listening on port ${PORT}`))
   .on("message", (_, remote) => {
     udpLanServer.send("udp 192.168.31.65 server", remote.port, remote.address);
   })
-  .on("error", (error) => console.error(`udp 192.168.31.65 server failed to listen on port ${PORT}`, error))
   .bind(PORT, "192.168.31.65");
 ```
 
-After running it, use the `lsof` command again to inspect port usage.
+  </Fragment>
+  <Fragment slot="result">
 
-![result](./assets/5.jpg)
+After running it, use `lsof` again to inspect port usage:
+
+```bash
+$ lsof -nP -i :8000
+COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+bun.exe 23135  mao    5u  IPv4 0x3d0a6cee52b9b04b      0t0  TCP 127.0.0.1:8000 (LISTEN)
+bun.exe 23135  mao    7u  IPv4 0x66cdc4e4c0c7cf58      0t0  TCP 192.168.31.65:8000 (LISTEN)
+bun.exe 23135  mao    8u  IPv4 0xead7765c2d118206      0t0  UDP 127.0.0.1:8000
+bun.exe 23135  mao    9u  IPv4 0xa7bae361e43c149a      0t0  UDP 192.168.31.65:8000
+```
 
 Test result from the `nc` tool:
 
-![result](./assets/6.jpg)
+```bash
+$ nc 127.0.0.1 8000
+tcp 127.0.0.1 server%
+$ nc 192.168.31.65 8000
+tcp 192.168.31.65 server%
+$ nc -u 127.0.0.1 8000
+1
+udp 127.0.0.1 server^C
+$ nc -u 192.168.31.65 8000
+1
+udp 192.168.31.65 server^C
+```
 
 We can see that each one is indeed an independent service. At this point, our idea and design match the real behavior.
+
+  </Fragment>
+</Experiment>
 
 ## IPv4 and IPv6
 
@@ -224,7 +300,11 @@ In our current design, we have only considered `ipv4` addresses. But in reality,
 
 So the current design should also be directly compatible with `ipv6`. That means we should be able to run `ipv4` and `ipv6` services separately under both `TCP` and `UDP`.
 
-We can test this with the following code:
+<Experiment
+  title="Binding the Same Port to IPv4 and IPv6 Addresses"
+  purpose="Verify whether the previous model still holds after extending the address dimension from IPv4 to IPv6."
+>
+  <Fragment slot="code">
 
 ```typescript
 import { createSocket } from "node:dgram";
@@ -235,39 +315,50 @@ const IPV4_HOST = "127.0.0.1";
 const IPV6_HOST = "fe80::2605:dc4d:cabd:284c%utun0";
 
 createServer((socket) => socket.end("tcp ipv4 server"))
-  .on("listening", () => console.log(`tcp ipv4 server is listening on ${IPV4_HOST}:${PORT}`))
-  .on("error", (error) => console.error(`tcp ipv4 server failed to listen on ${IPV4_HOST}:${PORT}`, error))
   .listen(PORT, IPV4_HOST);
 
 createServer((socket) => socket.end("tcp ipv6 server"))
-  .on("listening", () => console.log(`tcp ipv6 server is listening on [${IPV6_HOST}]:${PORT}`))
-  .on("error", (error) => console.error(`tcp ipv6 server failed to listen on [${IPV6_HOST}]:${PORT}`, error))
   .listen(PORT, IPV6_HOST);
 
 const udpIpv4Server = createSocket("udp4")
-  .on("listening", () => console.log(`udp ipv4 server is listening on ${IPV4_HOST}:${PORT}`))
   .on("message", (_, remote) => {
     udpIpv4Server.send("udp ipv4 server", remote.port, remote.address);
   })
-  .on("error", (error) => console.error(`udp ipv4 server failed to listen on ${IPV4_HOST}:${PORT}`, error))
   .bind(PORT, IPV4_HOST);
 
 const udpIpv6Server = createSocket("udp6")
-  .on("listening", () => console.log(`udp ipv6 server is listening on [${IPV6_HOST}]:${PORT}`))
   .on("message", (_, remote) => {
     udpIpv6Server.send("udp ipv6 server", remote.port, remote.address);
   })
-  .on("error", (error) => console.error(`udp ipv6 server failed to listen on [${IPV6_HOST}]:${PORT}`, error))
   .bind(PORT, IPV6_HOST);
 ```
 
-The result is shown below, and it matches our expectation.
+  </Fragment>
+  <Fragment slot="result">
 
-![result](./assets/7.jpg)
+The result is shown below, and it matches our expectation:
+
+```bash
+$ lsof -nP -i :8000
+COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+bun.exe 27122  mao    5u  IPv4 0x4f3595850ef5a91e      0t0  TCP 127.0.0.1:8000 (LISTEN)
+bun.exe 27122  mao    6u  IPv6 0xc0ceccc770e3759      0t0  TCP [fe80:10::2605:dc4d:cabd:284c]:8000 (LISTEN)
+bun.exe 27122  mao    7u  IPv4 0x5772188e4f31236      0t0  UDP 127.0.0.1:8000
+bun.exe 27122  mao    8u  IPv6 0xead7765c2d118206      0t0  UDP [fe80:10::2605:dc4d:cabd:284c]:8000
+```
+
+  </Fragment>
+</Experiment>
 
 ## Can Multiple Services Bind the Same Address and Port?
 
-In our current design, `local address + transport-layer protocol + port` is a unique identifier and cannot be duplicated. We can test what happens if they are exactly the same:
+In our current design, `local address + transport-layer protocol + port` is a unique identifier and cannot be duplicated. We can test what happens if they are exactly the same.
+
+<Experiment
+  title="Binding the Same Address, Protocol, and Port Twice"
+  purpose="Verify whether the system can still distinguish two services when the local address, transport-layer protocol, and port are all exactly the same."
+>
+  <Fragment slot="code">
 
 ```typescript
 import { createServer } from "node:net";
@@ -276,23 +367,45 @@ const PORT = 8000;
 const HOST = "127.0.0.1";
 
 createServer((socket) => socket.end("first tcp server"))
-  .on("listening", () => console.log(`first tcp server is listening on ${HOST}:${PORT}`))
-  .on("error", (error) => console.error(`first tcp server failed to listen on ${HOST}:${PORT}`, error))
   .listen(PORT, HOST);
 
 createServer((socket) => socket.end("second tcp server"))
-  .on("listening", () => console.log(`second tcp server is listening on ${HOST}:${PORT}`))
-  .on("error", (error) => console.error(`second tcp server failed to listen on ${HOST}:${PORT}`, error))
   .listen(PORT, HOST);
 ```
+
+  </Fragment>
+  <Fragment slot="result">
 
 When running it, we get the following error:
 
-![result](./assets/8.jpg)
+```txt
+$ bun run src/step5.ts
+first tcp server is listening on 127.0.0.1:8000
+second tcp server failed to listen on 127.0.0.1:8000 error: Failed to listen at 127.0.0.1
+  syscall: "listen",
+  errno: 48,
+  address: "127.0.0.1",
+  port: 8000,
+  code: "EADDRINUSE"
+
+      at listen (unknown:1:1)
+      at node:net:1363:30
+      at listenInCluster (node:net:1424:24)
+      at listen (node:net:1332:20)
+```
 
 Clearly, from the system's perspective, if two services have exactly the same address, protocol, and port, it cannot distinguish which service should receive the packet.
 
-However, when you ask AI, you may find that `SO_REUSEPORT` can be used to force multiple services to run on the same `local address + transport-layer protocol + port`. The code looks like this:
+  </Fragment>
+</Experiment>
+
+However, when you ask AI, you may find that `SO_REUSEPORT` can be used to force multiple services to run on the same `local address + transport-layer protocol + port`.
+
+<Experiment
+  title="Using SO_REUSEPORT to Bind the Same Address, Protocol, and Port Twice"
+  purpose="Verify whether multiple services can run on the same local address, transport-layer protocol, and port after reusePort is enabled."
+>
+  <Fragment slot="code">
 
 ```typescript
 import { createServer } from "node:net";
@@ -301,23 +414,43 @@ const PORT = 8000;
 const HOST = "127.0.0.1";
 
 createServer((socket) => socket.end("first tcp server"))
-  .on("listening", () => console.log(`first tcp server is listening on ${HOST}:${PORT}`))
-  .on("error", (error) => console.error(`first tcp server failed to listen on ${HOST}:${PORT}`, error))
   .listen({ port: PORT, host: HOST, reusePort: true });
 
 createServer((socket) => socket.end("second tcp server"))
-  .on("listening", () => console.log(`second tcp server is listening on ${HOST}:${PORT}`))
-  .on("error", (error) => console.error(`second tcp server failed to listen on ${HOST}:${PORT}`, error))
   .listen({ port: PORT, host: HOST, reusePort: true });
 ```
 
-After running it, there is no error, and the `lsof` result is shown below.
+  </Fragment>
+  <Fragment slot="result">
 
-![result](./assets/9.jpg)
+After running it, there is no error, and the `lsof` result is shown below:
 
-Also, when you access it, you will find that it always connects to the second TCP service.
+```bash
+$ lsof -nP -i :8000
+COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+bun.exe 29151  mao    5u  IPv4 0x5f7ef352c7bde55      0t0  TCP 127.0.0.1:8000 (LISTEN)
+bun.exe 29151  mao    6u  IPv4 0x193be1888925d7c5     0t0  TCP 127.0.0.1:8000 (LISTEN)
+```
 
-![result](./assets/10.jpg)
+Also, when you access it, you will find that it always connects to the second TCP service:
+
+```bash
+$ nc 127.0.0.1 8000
+second tcp server%
+$ nc 127.0.0.1 8000
+second tcp server%
+$ nc 127.0.0.1 8000
+second tcp server%
+$ nc 127.0.0.1 8000
+second tcp server%
+$ nc 127.0.0.1 8000
+second tcp server%
+$ nc 127.0.0.1 8000
+second tcp server%
+```
+
+  </Fragment>
+</Experiment>
 
 We will not explore this issue here. Maybe you can try to figure it out yourself:
 
